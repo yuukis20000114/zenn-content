@@ -1,0 +1,191 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# Claude Code + Codex 初回セットアップスクリプト
+# ==============================================================================
+# 使用方法:
+#   docker compose exec app bash scripts/setup-claude.sh
+# ==============================================================================
+
+set -euo pipefail
+
+# カラー定義
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# ログ関数
+log_info() {
+    echo -e "${BLUE}[INFO]${NC} $1"
+}
+
+log_success() {
+    echo -e "${GREEN}[SUCCESS]${NC} $1"
+}
+
+log_warn() {
+    echo -e "${YELLOW}[WARN]${NC} $1"
+}
+
+log_error() {
+    echo -e "${RED}[ERROR]${NC} $1"
+}
+
+# ヘッダー表示
+echo ""
+echo "=============================================="
+echo " Claude Code + Codex + MCP 初回セットアップ"
+echo "=============================================="
+echo ""
+
+# 1. 環境確認
+log_info "環境を確認しています..."
+
+# Node.js確認
+if command -v node &> /dev/null; then
+    NODE_VERSION=$(node --version)
+    log_success "Node.js: $NODE_VERSION"
+else
+    log_error "Node.jsがインストールされていません"
+    exit 1
+fi
+
+# Python確認
+if command -v python3 &> /dev/null; then
+    PYTHON_VERSION=$(python3 --version)
+    log_success "Python: $PYTHON_VERSION"
+else
+    log_error "Python3がインストールされていません"
+    exit 1
+fi
+
+# uv確認
+if command -v uv &> /dev/null; then
+    UV_VERSION=$(uv --version)
+    log_success "uv: $UV_VERSION"
+else
+    log_error "uvがインストールされていません"
+    exit 1
+fi
+
+# Claude Code確認
+if command -v claude &> /dev/null; then
+    log_success "Claude Code: インストール済み"
+else
+    log_warn "Claude Codeがインストールされていません。インストールを試みます..."
+    npm install -g @anthropic-ai/claude-code
+fi
+
+echo ""
+
+# 2. MCP設定確認
+log_info "MCP設定を確認しています..."
+
+if [ -f "/work/.claude.json" ]; then
+    log_success ".claude.json: 存在"
+    # MCP数をカウント
+    MCP_COUNT=$(jq '.mcpServers | length' /work/.claude.json 2>/dev/null || echo "0")
+    log_info "設定済みMCPサーバー数: $MCP_COUNT"
+else
+    log_warn ".claude.jsonが見つかりません"
+fi
+
+echo ""
+
+# 3. textlint設定確認
+log_info "textlint設定を確認しています..."
+
+if [ -f "/work/.textlintrc.json" ]; then
+    log_success ".textlintrc.json: 存在"
+else
+    log_warn ".textlintrc.jsonが見つかりません"
+fi
+
+# textlintルール確認
+if npm list -g textlint &> /dev/null; then
+    log_success "textlint: グローバルインストール済み"
+else
+    log_warn "textlintがインストールされていません。インストールを試みます..."
+    npm install -g textlint textlint-rule-preset-ja-technical-writing textlint-rule-preset-jtf-style textlint-rule-prh
+fi
+
+echo ""
+
+# 4. Playwright確認
+log_info "Playwrightを確認しています..."
+
+# npx --no でプロンプトを抑制し、タイムアウトを設定
+if timeout 5 npx --no playwright --version &> /dev/null; then
+    PLAYWRIGHT_VERSION=$(npx --no playwright --version 2>/dev/null || echo "unknown")
+    log_success "Playwright: $PLAYWRIGHT_VERSION"
+else
+    log_warn "Playwrightがインストールされていない可能性があります"
+    log_info "インストールする場合: npm install -g playwright && npx playwright install chromium"
+fi
+
+echo ""
+
+# 5. Claude Code認証状態確認
+log_info "Claude Code認証状態を確認しています..."
+
+if [ -d "/root/.claude" ] && [ -f "/root/.claude/credentials.json" ] 2>/dev/null; then
+    log_success "Claude Code: 認証済み"
+else
+    log_warn "Claude Code: 未認証"
+    echo ""
+    echo "=============================================="
+    echo " Claude Code 認証手順"
+    echo "=============================================="
+    echo ""
+    echo "1. 以下のコマンドを実行:"
+    echo "   ${GREEN}claude${NC}"
+    echo ""
+    echo "2. 表示されるURLをブラウザで開く"
+    echo ""
+    echo "3. Anthropicアカウントでログイン"
+    echo ""
+    echo "4. 認証コードをターミナルに貼り付け"
+    echo ""
+    echo "=============================================="
+fi
+
+echo ""
+
+# 6. Codex CLI確認
+log_info "OpenAI Codex CLI を確認しています..."
+
+if command -v codex &> /dev/null; then
+    log_success "Codex CLI: インストール済み"
+else
+    log_warn "Codex CLI: 未インストール"
+    log_info "インストール: npm install -g @openai/codex"
+fi
+
+# Codex認証状態確認
+if [ -d "/root/.codex" ] && ls /root/.codex/auth* &> /dev/null 2>&1; then
+    log_success "Codex: 認証済み"
+else
+    log_warn "Codex: 未認証"
+    log_info "認証: codex login （ChatGPTアカウントで認証）"
+fi
+
+echo ""
+
+# 7. サマリー
+echo "=============================================="
+echo " セットアップ完了"
+echo "=============================================="
+echo ""
+echo "次のステップ:"
+echo ""
+echo "  1. Claude Code認証（未認証の場合）:"
+echo "     ${GREEN}claude${NC}"
+echo ""
+echo "  2. MCP確認:"
+echo "     ${GREEN}claude mcp list${NC}"
+echo ""
+echo "  3. Codex認証（未認証の場合）:"
+echo "     ${GREEN}codex login${NC}"
+echo ""
+echo "=============================================="
